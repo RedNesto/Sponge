@@ -281,7 +281,7 @@ public abstract class MixinInventoryPlayer implements IMixinInventoryPlayer, Pla
     public int onAdd(InventoryPlayer inv, int index, ItemStack stack) {
         if (this.doCapture) {
             // Capture items getting picked up
-            Slot slot = this.getMain().getSlot(SlotIndex.of(index)).get();
+            Slot slot = index == 40 ? this.getOffhand() : this.getMain().getSlot(SlotIndex.of(index)).get();
             ItemStackSnapshot original = ItemStackUtil.snapshotOf(this.getStackInSlot(index));
             int result = this.addResource(index, stack);
             ItemStackSnapshot replacement = ItemStackUtil.snapshotOf(this.getStackInSlot(index));
