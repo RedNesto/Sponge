@@ -35,12 +35,10 @@ import org.spongepowered.api.Sponge;
 import org.spongepowered.api.block.BlockSnapshot;
 import org.spongepowered.api.entity.Entity;
 import org.spongepowered.api.entity.projectile.Projectile;
-import org.spongepowered.api.entity.projectile.source.ProjectileSource;
 import org.spongepowered.api.event.CauseStackManager;
 import org.spongepowered.api.event.SpongeEventFactory;
 import org.spongepowered.api.event.cause.EventContextKeys;
 import org.spongepowered.api.event.entity.SpawnEntityEvent;
-import org.spongepowered.api.event.entity.projectile.LaunchProjectileEvent;
 import org.spongepowered.api.event.item.inventory.DropItemEvent;
 import org.spongepowered.api.item.ItemTypes;
 import org.spongepowered.api.item.inventory.ItemStack;
@@ -56,14 +54,12 @@ import org.spongepowered.common.event.tracking.TrackingUtil;
 import org.spongepowered.common.event.tracking.context.ItemDropData;
 import org.spongepowered.common.event.tracking.phase.block.BlockPhase;
 import org.spongepowered.common.interfaces.IMixinContainer;
-import org.spongepowered.common.item.inventory.util.ContainerUtil;
 import org.spongepowered.common.item.inventory.util.ItemStackUtil;
 import org.spongepowered.common.registry.type.event.InternalSpawnTypes;
 import org.spongepowered.common.util.VecHelper;
 
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -85,6 +81,7 @@ final class InteractionPacketState extends BasicPacketState {
         if (stack != null) {
             context.itemUsed(stack);
         }
+        ((IMixinContainer) playerMP.inventoryContainer).setCaptureInventory(true);
     }
 
     @Override
@@ -121,6 +118,8 @@ final class InteractionPacketState extends BasicPacketState {
     @Override
     public void unwind(BasicPacketContext phaseContext) {
         final EntityPlayerMP player = phaseContext.getPacketPlayer();
+        IMixinContainer playerMixinContainer = (IMixinContainer) player.inventoryContainer;
+        playerMixinContainer.detectAndSendChanges(false);
         final ItemStack usedStack = phaseContext.getItemUsed();
         final ItemStackSnapshot usedSnapshot = ItemStackUtil.snapshotOf(usedStack);
         final Entity spongePlayer = EntityUtil.fromNative(player);
@@ -146,10 +145,8 @@ final class InteractionPacketState extends BasicPacketState {
                             final Collection<EntityItem> entityItems = map.get(blockPos);
                             if (!entityItems.isEmpty()) {
                                 final List<Entity> items = entityItems.stream().map(EntityUtil::fromNative).collect(Collectors.toList());
-                                final DropItemEvent.Destruct event =
-                                        SpongeEventFactory.createDropItemEventDestruct(Sponge.getCauseStackManager().getCurrentCause(), items);
-                                SpongeImpl.postEvent(event);
-                                if (!event.isCancelled()) {
+                                final DropItemEvent.Destruct event = SpongeEventFactory.createDropItemEventDestruct(Sponge.getCauseStackManager().getCurrentCause(), items);
+                                if (!SpongeImpl.postEvent(event)) {
                                     processSpawnedEntities(player, event);
                                 }
                             }
@@ -199,14 +196,14 @@ final class InteractionPacketState extends BasicPacketState {
                         printer.trace(System.err);
                     });
             phaseContext.getCapturedEntitySupplier().acceptAndClearIfNotEmpty(entities -> {
-                final List<Entity> projectiles = new ArrayList<>(entities.size());
+                final List<Projectile> projectiles = new ArrayList<>(entities.size());
                 final List<Entity> spawnEggs = new ArrayList<>(entities.size());
                 final List<Entity> xpOrbs = new ArrayList<>(entities.size());
                 final List<Entity> normalPlacement = new ArrayList<>(entities.size());
                 final List<Entity> items = new ArrayList<>(entities.size());
                 for (Entity entity : entities) {
                     if (entity instanceof Projectile || entity instanceof EntityThrowable) {
-                        projectiles.add(entity);
+                        projectiles.add((Projectile) entity);
                     } else if (usedSnapshot.getType() == ItemTypes.SPAWN_EGG) {
                         spawnEggs.add(entity);
                     } else if (entity instanceof EntityItem) {
@@ -218,32 +215,11 @@ final class InteractionPacketState extends BasicPacketState {
                     }
                 }
                 if (!projectiles.isEmpty()) {
-                    if (ShouldFire.SPAWN_ENTITY_EVENT) {
-                        try (CauseStackManager.StackFrame frame2 = Sponge.getCauseStackManager().pushCauseFrame()) {
-                            Sponge.getCauseStackManager().addContext(EventContextKeys.SPAWN_TYPE, InternalSpawnTypes.PROJECTILE);
-                            Sponge.getCauseStackManager().pushCause(usedSnapshot);
-                            final SpawnEntityEvent event =
-                                    SpongeEventFactory.createSpawnEntityEvent(Sponge.getCauseStackManager().getCurrentCause(),
-                                            projectiles);
-                            if (!SpongeImpl.postEvent(event)) {
-                                try (CauseStackManager.StackFrame frame3 = Sponge.getCauseStackManager().pushCauseFrame()) {
-                                    frame3.addContext(EventContextKeys.PROJECTILE_SOURCE, (ProjectileSource) player);
-                                    for (Iterator<Entity> iterator = projectiles.iterator(); iterator.hasNext(); ) {
-                                        Entity projectile = iterator.next();
-                                        LaunchProjectileEvent launchProjectileEvent =
-                                                SpongeEventFactory.createLaunchProjectileEvent(Sponge.getCauseStackManager().getCurrentCause(),
-                                                        (Projectile) projectile);
-                                        if (SpongeImpl.postEvent(launchProjectileEvent)) {
-                                            // TODO return the projectile when cancelled
-                                            iterator.remove();
-                                        }
-                                    }
-                                }
-                                processSpawnedEntities(player, event);
-                            }
-                        }
-                    } else {
-                        processEntities(player, projectiles);
+                    try (CauseStackManager.StackFrame frame2 = Sponge.getCauseStackManager().pushCauseFrame()) {
+                        frame2.addContext(EventContextKeys.SPAWN_TYPE, InternalSpawnTypes.PROJECTILE);
+                        frame2.pushCause(usedSnapshot);
+
+                        PacketPhaseUtil.fireProjectileLaunchEvent(frame2, player, projectiles);
                     }
                 }
                 if (!spawnEggs.isEmpty()) {
@@ -308,9 +284,8 @@ final class InteractionPacketState extends BasicPacketState {
                 }
             });
 
-            final IMixinContainer mixinContainer = ContainerUtil.toMixin(player.openContainer);
-            mixinContainer.setCaptureInventory(false);
-            mixinContainer.getCapturedTransactions().clear();
+            playerMixinContainer.setCaptureInventory(false);
+            playerMixinContainer.getCapturedTransactions().clear();
         }
     }
 }

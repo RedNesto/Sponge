@@ -33,6 +33,7 @@ import net.minecraft.entity.item.EntityItemFrame;
 import net.minecraft.entity.item.EntityXPOrb;
 import net.minecraft.entity.passive.EntityAnimal;
 import net.minecraft.entity.player.EntityPlayer;
+import net.minecraft.entity.player.EntityPlayerMP;
 import net.minecraft.util.CombatEntry;
 import net.minecraft.util.math.BlockPos;
 import org.spongepowered.api.Sponge;
@@ -44,18 +45,21 @@ import org.spongepowered.api.entity.living.Ageable;
 import org.spongepowered.api.entity.living.player.Player;
 import org.spongepowered.api.entity.living.player.User;
 import org.spongepowered.api.entity.projectile.Projectile;
+import org.spongepowered.api.entity.projectile.source.ProjectileSource;
 import org.spongepowered.api.event.CauseStackManager;
 import org.spongepowered.api.event.SpongeEventFactory;
 import org.spongepowered.api.event.cause.EventContextKeys;
 import org.spongepowered.api.event.cause.entity.damage.source.DamageSource;
 import org.spongepowered.api.event.entity.MoveEntityEvent;
 import org.spongepowered.api.event.entity.SpawnEntityEvent;
+import org.spongepowered.api.event.entity.projectile.LaunchProjectileEvent;
 import org.spongepowered.api.event.item.inventory.DropItemEvent;
 import org.spongepowered.api.world.World;
 import org.spongepowered.common.SpongeImpl;
 import org.spongepowered.common.entity.EntityUtil;
 import org.spongepowered.common.event.tracking.TrackingUtil;
 import org.spongepowered.common.event.tracking.phase.general.ExplosionContext;
+import org.spongepowered.common.interfaces.IMixinContainer;
 import org.spongepowered.common.interfaces.world.IMixinLocation;
 import org.spongepowered.common.registry.type.event.InternalSpawnTypes;
 import org.spongepowered.common.util.VecHelper;
@@ -148,16 +152,23 @@ class EntityTickPhaseState extends TickPhaseState<EntityTickContext> {
                             Sponge.getCauseStackManager().removeContext(EventContextKeys.PLAYER);
                         }
                         if (!projectile.isEmpty()) {
-                            Sponge.getCauseStackManager().addContext(EventContextKeys.SPAWN_TYPE, InternalSpawnTypes.PROJECTILE);
-                            final SpawnEntityEvent event =
-                                    SpongeEventFactory.createSpawnEntityEvent(Sponge.getCauseStackManager().getCurrentCause(), projectile);
-                            SpongeImpl.postEvent(event);
-                            if (!event.isCancelled()) {
-                                for (Entity entity : event.getEntities()) {
-                                    if (entityCreator != null) {
-                                        entity.setCreator(entityCreator.getUniqueId());
+                            frame.addContext(EventContextKeys.SPAWN_TYPE, InternalSpawnTypes.PROJECTILE);
+                            frame.addContext(EventContextKeys.PROJECTILE_SOURCE, (ProjectileSource) tickingEntity);
+                            frame.addContext(EventContextKeys.THROWER, (ProjectileSource) tickingEntity);
+
+                            LaunchProjectileEvent launchProjectileEvent = SpongeEventFactory.createLaunchProjectileEvent(Sponge.getCauseStackManager().getCurrentCause(),
+                                    projectile, projectile);
+                            if (SpongeImpl.postEvent(launchProjectileEvent)) {
+                                projectile.clear();
+                            } else {
+                                SpawnEntityEvent spawnEntityEvent = SpongeEventFactory.createSpawnEntityEvent(frame.getCurrentCause(), projectile);
+                                if(!SpongeImpl.postEvent(spawnEntityEvent)) {
+                                    for (Entity entity : spawnEntityEvent.getEntities()) {
+                                        if (entityCreator != null) {
+                                            entity.setCreator(entityCreator.getUniqueId());
+                                        }
+                                        EntityUtil.getMixinWorld(entity).forceSpawnEntity(entity);
                                     }
-                                    EntityUtil.getMixinWorld(entity).forceSpawnEntity(entity);
                                 }
                             }
                         }
@@ -239,6 +250,10 @@ class EntityTickPhaseState extends TickPhaseState<EntityTickContext> {
                     });
             this.fireMovementEvents(EntityUtil.toNative(tickingEntity));
         }
+
+        if(tickingEntity instanceof EntityPlayerMP) {
+            ((IMixinContainer) ((EntityPlayerMP) tickingEntity).openContainer).getCapturedTransactions().clear();
+        }
     }
 
     private void fireMovementEvents(net.minecraft.entity.Entity entity) {
@@ -250,10 +265,10 @@ class EntityTickPhaseState extends TickPhaseState<EntityTickContext> {
         Entity spongeEntity = (Entity) entity;
 
         if (entity.lastTickPosX != entity.posX
-            || entity.lastTickPosY != entity.posY
-            || entity.lastTickPosZ != entity.posZ
-            || entity.rotationPitch != entity.prevRotationPitch
-            || entity.rotationYaw != entity.prevRotationYaw) {
+                || entity.lastTickPosY != entity.posY
+                || entity.lastTickPosZ != entity.posZ
+                || entity.rotationPitch != entity.prevRotationPitch
+                || entity.rotationYaw != entity.prevRotationYaw) {
             // yes we have a move event.
             final double currentPosX = entity.posX;
             final double currentPosY = entity.posY;
@@ -311,7 +326,7 @@ class EntityTickPhaseState extends TickPhaseState<EntityTickContext> {
     @SuppressWarnings("OptionalGetWithoutIsPresent")
     @Override
     public void handleBlockChangeWithUser(@Nullable BlockChange blockChange, Transaction<BlockSnapshot> transaction,
-        EntityTickContext context) {
+            EntityTickContext context) {
         if (blockChange == BlockChange.BREAK) {
             final Entity tickingEntity = context.getSource(Entity.class).get();
             final BlockPos blockPos = VecHelper.toBlockPos(transaction.getOriginal().getPosition());
@@ -365,7 +380,7 @@ class EntityTickPhaseState extends TickPhaseState<EntityTickContext> {
                 }
                 final List<Entity> experience = new ArrayList<Entity>(1);
                 experience.add(entity);
-    
+
                 final SpawnEntityEvent
                         event =
                         SpongeEventFactory.createSpawnEntityEvent(Sponge.getCauseStackManager().getCurrentCause(), experience);
@@ -401,25 +416,12 @@ class EntityTickPhaseState extends TickPhaseState<EntityTickContext> {
                 }
                 return false;
             } else if (entity instanceof Projectile) {
-                Sponge.getCauseStackManager().addContext(EventContextKeys.SPAWN_TYPE, InternalSpawnTypes.PROJECTILE);
-                final List<Entity> projectile = new ArrayList<Entity>(1);
-                projectile.add(entity);
-                final SpawnEntityEvent event = SpongeEventFactory.createSpawnEntityEvent(Sponge.getCauseStackManager().getCurrentCause(), projectile);
-                SpongeImpl.postEvent(event);
-                if (!event.isCancelled()) {
-                    for (Entity anEntity : event.getEntities()) {
-                        if (entityCreator != null) {
-                            anEntity.setCreator(entityCreator.getUniqueId());
-                        }
-                        EntityUtil.getMixinWorld(entity).forceSpawnEntity(anEntity);
-                    }
-                    return true;
-                }
-                return false;
+                context.getCapturedEntities().add(entity);
+                return true;
             }
             final List<Entity> nonExp = new ArrayList<Entity>(1);
             nonExp.add(entity);
-    
+
             Sponge.getCauseStackManager().addContext(EventContextKeys.SPAWN_TYPE, InternalSpawnTypes.PASSIVE);
             final SpawnEntityEvent event = SpongeEventFactory.createSpawnEntityEvent(Sponge.getCauseStackManager().getCurrentCause(), nonExp);
             SpongeImpl.postEvent(event);

@@ -28,6 +28,7 @@ import net.minecraft.dispenser.BehaviorDefaultDispenseItem;
 import net.minecraft.dispenser.BehaviorProjectileDispense;
 import net.minecraft.dispenser.IBlockSource;
 import net.minecraft.dispenser.IPosition;
+import net.minecraft.entity.Entity;
 import net.minecraft.entity.IProjectile;
 import net.minecraft.item.ItemStack;
 import net.minecraft.tileentity.TileEntity;
@@ -44,13 +45,19 @@ import org.spongepowered.api.util.annotation.NonnullByDefault;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
+import org.spongepowered.asm.mixin.injection.Redirect;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 import org.spongepowered.asm.mixin.injection.callback.LocalCapture;
 import org.spongepowered.common.SpongeImpl;
 
+import java.util.ArrayList;
+import java.util.List;
+
 @NonnullByDefault
 @Mixin(BehaviorProjectileDispense.class)
 public class MixinBehaviorProjectileDispense extends BehaviorDefaultDispenseItem {
+
+    private boolean shouldNotSpawn = false;
 
     @Inject(method = "dispenseStack", at = @At(value = "INVOKE", target = "Lnet/minecraft/world/World;spawnEntity(Lnet/minecraft/entity/Entity;)Z"),
             locals = LocalCapture.CAPTURE_FAILEXCEPTION, cancellable = true)
@@ -60,15 +67,31 @@ public class MixinBehaviorProjectileDispense extends BehaviorDefaultDispenseItem
         if (tileEntity instanceof ProjectileSource) {
             try (CauseStackManager.StackFrame frame = Sponge.getCauseStackManager().pushCauseFrame()) {
                 frame.addContext(EventContextKeys.PROJECTILE_SOURCE, (ProjectileSource) tileEntity);
+                frame.addContext(EventContextKeys.THROWER, (ProjectileSource) tileEntity);
                 ((Projectile) iprojectile).setShooter((ProjectileSource) tileEntity);
-                LaunchProjectileEvent event = SpongeEventFactory.createLaunchProjectileEvent(Sponge.getCauseStackManager().getCurrentCause(),
-                        (Projectile) iprojectile);
-                SpongeImpl.getGame().getEventManager().post(event);
-                if (event.isCancelled()){
+                List<Projectile> projectiles = new ArrayList<>();
+                projectiles.add((Projectile) iprojectile);
+                LaunchProjectileEvent event = SpongeEventFactory.createLaunchProjectileEvent(Sponge.getCauseStackManager().getCurrentCause(), projectiles, projectiles);
+                if (SpongeImpl.postEvent(event)) {
                     cir.setReturnValue(stack);
-                    cir.cancel();
                 }
+
+                if(!projectiles.remove(iprojectile)) {
+                    this.shouldNotSpawn = true;
+                }
+
+                event.getEntities().forEach(entity -> entity.getWorld().spawnEntity(entity));
             }
         }
+    }
+
+    @Redirect(method = "dispenseStack", at = @At(value = "INVOKE", target = "Lnet/minecraft/world/World;spawnEntity(Lnet/minecraft/entity/Entity;)Z"))
+    public boolean redirectSpawn(World world, Entity entityIn) {
+        if(this.shouldNotSpawn) {
+            this.shouldNotSpawn = false;
+            return false;
+        }
+
+        return world.spawnEntity(entityIn);
     }
 }
