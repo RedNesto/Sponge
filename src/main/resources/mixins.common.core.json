@@ -140,6 +140,7 @@
         "command.MixinCommandDefaultGameMode",
         "command.MixinCommandExecuteAt",
         "command.MixinCommandHandler",
+        "command.MixinCommandKill",
         "command.MixinCommandScoreboard",
         "command.MixinCommandSendCommandFeedback",
         "command.MixinCommandSenderWrapper",
