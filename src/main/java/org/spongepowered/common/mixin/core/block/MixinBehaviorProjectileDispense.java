@@ -27,29 +27,48 @@ package org.spongepowered.common.mixin.core.block;
 import net.minecraft.dispenser.BehaviorDefaultDispenseItem;
 import net.minecraft.dispenser.BehaviorProjectileDispense;
 import net.minecraft.dispenser.IBlockSource;
-import net.minecraft.entity.Entity;
+import net.minecraft.dispenser.IPosition;
+import net.minecraft.entity.IProjectile;
 import net.minecraft.item.ItemStack;
 import net.minecraft.tileentity.TileEntity;
+import net.minecraft.util.EnumFacing;
 import net.minecraft.world.World;
+import org.spongepowered.api.Sponge;
 import org.spongepowered.api.entity.projectile.Projectile;
 import org.spongepowered.api.entity.projectile.source.ProjectileSource;
+import org.spongepowered.api.event.CauseStackManager;
+import org.spongepowered.api.event.SpongeEventFactory;
+import org.spongepowered.api.event.cause.EventContextKeys;
+import org.spongepowered.api.event.entity.projectile.LaunchProjectileEvent;
 import org.spongepowered.api.util.annotation.NonnullByDefault;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
-import org.spongepowered.asm.mixin.injection.Redirect;
+import org.spongepowered.asm.mixin.injection.Inject;
+import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
+import org.spongepowered.asm.mixin.injection.callback.LocalCapture;
+import org.spongepowered.common.SpongeImpl;
 
 @NonnullByDefault
 @Mixin(BehaviorProjectileDispense.class)
 public class MixinBehaviorProjectileDispense extends BehaviorDefaultDispenseItem {
 
-    @Redirect(method = "dispenseStack", at = @At(value = "INVOKE",
-            target = "Lnet/minecraft/world/World;spawnEntity(Lnet/minecraft/entity/Entity;)Z"))
-    public boolean onspawnEntity(World world, Entity entity, IBlockSource source, ItemStack stack) {
+    @Inject(method = "dispenseStack", at = @At(value = "INVOKE", target = "Lnet/minecraft/world/World;spawnEntity(Lnet/minecraft/entity/Entity;)Z"),
+            locals = LocalCapture.CAPTURE_FAILEXCEPTION, cancellable = true)
+    public void onSpawnEntity(IBlockSource source, ItemStack stack, CallbackInfoReturnable<ItemStack> cir, World world, IPosition iposition,
+            EnumFacing enumfacing, IProjectile iprojectile) {
         TileEntity tileEntity = source.getBlockTileEntity();
-        if (entity instanceof Projectile && tileEntity instanceof ProjectileSource) {
-            ((Projectile) entity).setShooter((ProjectileSource) tileEntity);
+        if (tileEntity instanceof ProjectileSource) {
+            try (CauseStackManager.StackFrame frame = Sponge.getCauseStackManager().pushCauseFrame()) {
+                frame.addContext(EventContextKeys.PROJECTILE_SOURCE, (ProjectileSource) tileEntity);
+                ((Projectile) iprojectile).setShooter((ProjectileSource) tileEntity);
+                LaunchProjectileEvent event = SpongeEventFactory.createLaunchProjectileEvent(Sponge.getCauseStackManager().getCurrentCause(),
+                        (Projectile) iprojectile);
+                SpongeImpl.getGame().getEventManager().post(event);
+                if (event.isCancelled()){
+                    cir.setReturnValue(stack);
+                    cir.cancel();
+                }
+            }
         }
-        return world.spawnEntity(entity);
     }
-
 }
