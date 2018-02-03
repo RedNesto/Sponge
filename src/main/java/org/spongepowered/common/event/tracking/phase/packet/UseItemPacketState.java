@@ -26,6 +26,7 @@ package org.spongepowered.common.event.tracking.phase.packet;
 
 import net.minecraft.block.Block;
 import net.minecraft.entity.player.EntityPlayerMP;
+import net.minecraft.entity.projectile.EntityThrowable;
 import net.minecraft.network.Packet;
 import net.minecraft.network.play.client.CPacketPlayerTryUseItem;
 import net.minecraft.util.EnumHand;
@@ -33,11 +34,15 @@ import net.minecraft.util.math.BlockPos;
 import org.spongepowered.api.Sponge;
 import org.spongepowered.api.block.BlockSnapshot;
 import org.spongepowered.api.data.Transaction;
+import org.spongepowered.api.entity.Entity;
 import org.spongepowered.api.entity.living.player.Player;
+import org.spongepowered.api.entity.projectile.Projectile;
+import org.spongepowered.api.entity.projectile.source.ProjectileSource;
 import org.spongepowered.api.event.CauseStackManager;
 import org.spongepowered.api.event.SpongeEventFactory;
 import org.spongepowered.api.event.cause.EventContextKeys;
 import org.spongepowered.api.event.entity.SpawnEntityEvent;
+import org.spongepowered.api.event.entity.projectile.LaunchProjectileEvent;
 import org.spongepowered.api.item.ItemTypes;
 import org.spongepowered.api.item.inventory.ItemStack;
 import org.spongepowered.api.item.inventory.ItemStackSnapshot;
@@ -51,6 +56,8 @@ import org.spongepowered.common.item.inventory.util.ItemStackUtil;
 import org.spongepowered.common.registry.type.ItemTypeRegistryModule;
 import org.spongepowered.common.registry.type.event.InternalSpawnTypes;
 import org.spongepowered.common.world.BlockChange;
+
+import java.util.Iterator;
 
 import javax.annotation.Nullable;
 
@@ -70,8 +77,13 @@ class UseItemPacketState extends BasicPacketState {
     }
 
     @Override
+    public boolean shouldCaptureEntity() {
+        return true;
+    }
+
+    @Override
     public void handleBlockChangeWithUser(@Nullable BlockChange blockChange, Transaction<BlockSnapshot> transaction,
-        BasicPacketContext context) {
+            BasicPacketContext context) {
         Player player = context.getSpongePlayer();
         BlockPos pos = ((IMixinLocation) (Object) transaction.getFinal().getLocation().get()).getBlockPos();
         IMixinChunk spongeChunk = (IMixinChunk) EntityUtil.getMinecraftWorld(player).getChunkFromBlockCoords(pos);
@@ -91,27 +103,43 @@ class UseItemPacketState extends BasicPacketState {
             Sponge.getCauseStackManager().pushCause(player);
             Sponge.getCauseStackManager().pushCause(snapshot);
             Sponge.getCauseStackManager().addContext(EventContextKeys.SPAWN_TYPE,
-                itemStack.getType() == ItemTypes.SPAWN_EGG ? InternalSpawnTypes.SPAWN_EGG : InternalSpawnTypes.PLACEMENT);
+                    itemStack.getType() == ItemTypes.SPAWN_EGG ? InternalSpawnTypes.SPAWN_EGG : InternalSpawnTypes.PLACEMENT);
             context.getCapturedEntitySupplier()
-                .acceptAndClearIfNotEmpty(entities -> {
-                    final SpawnEntityEvent spawnEntityEvent =
-                        SpongeEventFactory.createSpawnEntityEvent(Sponge.getCauseStackManager().getCurrentCause(), entities);
-                    SpongeImpl.postEvent(spawnEntityEvent);
-                    if (!spawnEntityEvent.isCancelled()) {
-                        processSpawnedEntities(player, spawnEntityEvent);
-                    }
-                });
+                    .acceptAndClearIfNotEmpty(entities -> {
+                        final SpawnEntityEvent spawnEntityEvent =
+                                SpongeEventFactory.createSpawnEntityEvent(Sponge.getCauseStackManager().getCurrentCause(), entities);
+                        SpongeImpl.postEvent(spawnEntityEvent);
+                        if (!spawnEntityEvent.isCancelled()) {
+                            try (CauseStackManager.StackFrame frame2 = Sponge.getCauseStackManager().pushCauseFrame()) {
+                                frame2.addContext(EventContextKeys.SPAWN_TYPE, InternalSpawnTypes.PROJECTILE);
+                                frame2.addContext(EventContextKeys.PROJECTILE_SOURCE, (ProjectileSource) player);
+                                for (Iterator<Entity> iterator = entities.iterator(); iterator.hasNext(); ) {
+                                    Entity entity = iterator.next();
+                                    if (entity instanceof Projectile || entity instanceof EntityThrowable) {
+                                        LaunchProjectileEvent launchProjectileEvent =
+                                                SpongeEventFactory.createLaunchProjectileEvent(Sponge.getCauseStackManager().getCurrentCause(),
+                                                        (Projectile) entity);
+                                        if (SpongeImpl.postEvent(launchProjectileEvent)) {
+                                            // TODO return the projectile when cancelled
+                                            iterator.remove();
+                                        }
+                                    }
+                                }
+                            }
+                            processSpawnedEntities(player, spawnEntityEvent);
+                        }
+                    });
         }
         context.getCapturedBlockSupplier()
-            .acceptAndClearIfNotEmpty(
-                originalBlocks -> {
-                    boolean success = TrackingUtil.processBlockCaptures(originalBlocks, this, context);
-                    if (!success && snapshot != ItemTypeRegistryModule.NONE_SNAPSHOT) {
-                        Sponge.getCauseStackManager().pushCause(player);
-                        EnumHand hand = ((CPacketPlayerTryUseItem) context.getPacket()).getHand();
-                        PacketPhaseUtil.handlePlayerSlotRestore(player, (net.minecraft.item.ItemStack) itemStack, hand);
-                    }
-                });
+                .acceptAndClearIfNotEmpty(
+                        originalBlocks -> {
+                            boolean success = TrackingUtil.processBlockCaptures(originalBlocks, this, context);
+                            if (!success && snapshot != ItemTypeRegistryModule.NONE_SNAPSHOT) {
+                                Sponge.getCauseStackManager().pushCause(player);
+                                EnumHand hand = ((CPacketPlayerTryUseItem) context.getPacket()).getHand();
+                                PacketPhaseUtil.handlePlayerSlotRestore(player, (net.minecraft.item.ItemStack) itemStack, hand);
+                            }
+                        });
 
     }
 }

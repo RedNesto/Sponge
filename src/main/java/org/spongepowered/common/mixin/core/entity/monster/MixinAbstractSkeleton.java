@@ -24,11 +24,39 @@
  */
 package org.spongepowered.common.mixin.core.entity.monster;
 
+import net.minecraft.entity.EntityLivingBase;
 import net.minecraft.entity.monster.AbstractSkeleton;
+import net.minecraft.entity.projectile.EntityArrow;
+import org.spongepowered.api.Sponge;
 import org.spongepowered.api.entity.living.monster.Skeleton;
+import org.spongepowered.api.entity.projectile.Projectile;
+import org.spongepowered.api.event.CauseStackManager;
+import org.spongepowered.api.event.SpongeEventFactory;
+import org.spongepowered.api.event.cause.EventContextKeys;
+import org.spongepowered.api.event.entity.projectile.LaunchProjectileEvent;
 import org.spongepowered.asm.mixin.Mixin;
+import org.spongepowered.asm.mixin.injection.At;
+import org.spongepowered.asm.mixin.injection.Inject;
+import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
+import org.spongepowered.asm.mixin.injection.callback.LocalCapture;
+import org.spongepowered.common.SpongeImpl;
 
 @Mixin(AbstractSkeleton.class)
 public abstract class MixinAbstractSkeleton extends MixinEntityMob implements Skeleton {
 
+    @Inject(method = "attackEntityWithRangedAttack",
+            at = @At(value = "INVOKE", target = "Lnet/minecraft/world/World;spawnEntity(Lnet/minecraft/entity/Entity;)Z"),
+            locals = LocalCapture.CAPTURE_FAILEXCEPTION, cancellable = true)
+    public void onShootAttack(EntityLivingBase target, float distanceFactor, CallbackInfo ci, EntityArrow entityarrow) {
+        try (CauseStackManager.StackFrame frame = Sponge.getCauseStackManager().pushCauseFrame()) {
+            frame.addContext(EventContextKeys.PROJECTILE_SOURCE, this);
+            ((Projectile) entityarrow).setShooter(this);
+            LaunchProjectileEvent event = SpongeEventFactory.createLaunchProjectileEvent(Sponge.getCauseStackManager().getCurrentCause(),
+                    (Projectile) entityarrow);
+            SpongeImpl.getGame().getEventManager().post(event);
+            if (event.isCancelled()) {
+                ci.cancel();
+            }
+        }
+    }
 }
