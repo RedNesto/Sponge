@@ -51,6 +51,7 @@ import org.spongepowered.common.entity.EntityUtil;
 import org.spongepowered.common.entity.PlayerTracker;
 import org.spongepowered.common.event.tracking.TrackingUtil;
 import org.spongepowered.common.interfaces.IMixinChunk;
+import org.spongepowered.common.interfaces.IMixinContainer;
 import org.spongepowered.common.interfaces.world.IMixinLocation;
 import org.spongepowered.common.item.inventory.util.ItemStackUtil;
 import org.spongepowered.common.registry.type.ItemTypeRegistryModule;
@@ -74,6 +75,7 @@ class UseItemPacketState extends BasicPacketState {
         final net.minecraft.item.ItemStack usedItem = playerMP.getHeldItem(placeBlock.getHand());
         final ItemStack itemstack = ItemStackUtil.cloneDefensive(usedItem);
         context.itemUsed(itemstack);
+        ((IMixinContainer) playerMP.inventoryContainer).setCaptureInventory(true);
     }
 
     @Override
@@ -97,6 +99,8 @@ class UseItemPacketState extends BasicPacketState {
     @Override
     public void unwind(BasicPacketContext context) {
         final EntityPlayerMP player = context.getPacketPlayer();
+        ((IMixinContainer) player.inventoryContainer).setCaptureInventory(false);
+        ((IMixinContainer) player.inventoryContainer).detectAndSendChanges(true);
         final ItemStack itemStack = context.getItemUsed();
         final ItemStackSnapshot snapshot = ItemStackUtil.snapshotOf(itemStack);
         try (CauseStackManager.StackFrame frame = Sponge.getCauseStackManager().pushCauseFrame()) {
@@ -106,30 +110,31 @@ class UseItemPacketState extends BasicPacketState {
                     itemStack.getType() == ItemTypes.SPAWN_EGG ? InternalSpawnTypes.SPAWN_EGG : InternalSpawnTypes.PLACEMENT);
             context.getCapturedEntitySupplier()
                     .acceptAndClearIfNotEmpty(entities -> {
-                        final SpawnEntityEvent spawnEntityEvent =
-                                SpongeEventFactory.createSpawnEntityEvent(Sponge.getCauseStackManager().getCurrentCause(), entities);
+                        final SpawnEntityEvent spawnEntityEvent = SpongeEventFactory.createSpawnEntityEvent(Sponge.getCauseStackManager().getCurrentCause(), entities);
                         SpongeImpl.postEvent(spawnEntityEvent);
                         if (!spawnEntityEvent.isCancelled()) {
-                            try (CauseStackManager.StackFrame frame2 = Sponge.getCauseStackManager().pushCauseFrame()) {
-                                frame2.addContext(EventContextKeys.SPAWN_TYPE, InternalSpawnTypes.PROJECTILE);
-                                frame2.addContext(EventContextKeys.PROJECTILE_SOURCE, (ProjectileSource) player);
-                                for (Iterator<Entity> iterator = entities.iterator(); iterator.hasNext(); ) {
-                                    Entity entity = iterator.next();
-                                    if (entity instanceof Projectile || entity instanceof EntityThrowable) {
-                                        LaunchProjectileEvent launchProjectileEvent =
-                                                SpongeEventFactory.createLaunchProjectileEvent(Sponge.getCauseStackManager().getCurrentCause(),
-                                                        (Projectile) entity);
-                                        if (SpongeImpl.postEvent(launchProjectileEvent)) {
-                                            // TODO return the projectile when cancelled
-                                            iterator.remove();
-                                        }
+                            frame.addContext(EventContextKeys.SPAWN_TYPE, InternalSpawnTypes.PROJECTILE);
+                            frame.addContext(EventContextKeys.PROJECTILE_SOURCE, (ProjectileSource) player);
+                            for (Iterator<Entity> iterator = entities.iterator(); iterator.hasNext(); ) {
+                                Entity entity = iterator.next();
+                                if (entity instanceof Projectile || entity instanceof EntityThrowable) {
+                                    LaunchProjectileEvent launchProjectileEvent =
+                                            SpongeEventFactory.createLaunchProjectileEvent(Sponge.getCauseStackManager().getCurrentCause(), (Projectile) entity);
+                                    if (SpongeImpl.postEvent(launchProjectileEvent)) {
+                                        // TODO return the projectile when cancelled
+                                        iterator.remove();
                                     }
                                 }
                             }
                             processSpawnedEntities(player, spawnEntityEvent);
+                        } else {
+                            ((IMixinContainer) player.inventoryContainer).getCapturedTransactions().forEach(slotTransaction -> {
+                                slotTransaction.getSlot().set(slotTransaction.getOriginal().createStack());
+                            });
                         }
                     });
         }
+        ((IMixinContainer) player.inventoryContainer).getCapturedTransactions().clear();
         context.getCapturedBlockSupplier()
                 .acceptAndClearIfNotEmpty(
                         originalBlocks -> {
@@ -140,6 +145,5 @@ class UseItemPacketState extends BasicPacketState {
                                 PacketPhaseUtil.handlePlayerSlotRestore(player, (net.minecraft.item.ItemStack) itemStack, hand);
                             }
                         });
-
     }
 }
