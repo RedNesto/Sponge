@@ -53,13 +53,6 @@ public enum BlockChange {
             return category.blockBreakLogging();
         }
     },
-    DECAY() {
-        @Nullable
-        @Override
-        public ChangeBlockEvent createEvent(Cause cause, ImmutableList<Transaction<BlockSnapshot>> transactions) {
-            return SpongeEventFactory.createChangeBlockEventDecay(cause, transactions);
-        }
-    },
     MODIFY("ModifyEvent") {
         @Override
         public ChangeBlockEvent createEvent(Cause cause, ImmutableList<Transaction<BlockSnapshot>> transactions) {
@@ -93,11 +86,10 @@ public enum BlockChange {
         }
     };
 
+    @Nullable
     public static BlockChange forEvent(ChangeBlockEvent event) {
         if (event instanceof ChangeBlockEvent.Break) {
             return BlockChange.BREAK;
-        } else if (event instanceof ChangeBlockEvent.Decay) {
-            return BlockChange.DECAY;
         } else if (event instanceof ChangeBlockEvent.Modify) {
             return BlockChange.MODIFY;
         } else if (event instanceof ChangeBlockEvent.Place) {

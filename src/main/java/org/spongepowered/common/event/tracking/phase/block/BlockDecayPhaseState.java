@@ -38,8 +38,8 @@ import org.spongepowered.api.world.Location;
 import org.spongepowered.api.world.World;
 import org.spongepowered.common.SpongeImpl;
 import org.spongepowered.common.entity.EntityUtil;
-import org.spongepowered.common.event.tracking.context.GeneralizedContext;
 import org.spongepowered.common.event.tracking.TrackingUtil;
+import org.spongepowered.common.event.tracking.context.GeneralizedContext;
 import org.spongepowered.common.interfaces.world.IMixinWorldServer;
 
 import java.util.List;
@@ -53,7 +53,7 @@ final class BlockDecayPhaseState extends BlockPhaseState {
     @Override
     public GeneralizedContext createPhaseContext() {
         return super.createPhaseContext()
-            .addCaptures();
+                .addCaptures();
     }
 
     @SuppressWarnings("unchecked")
@@ -69,7 +69,6 @@ final class BlockDecayPhaseState extends BlockPhaseState {
                     // Nothing happens here yet for some reason.
                 });
         try (StackFrame frame = Sponge.getCauseStackManager().pushCauseFrame()) {
-            Sponge.getCauseStackManager().pushCause(locatable);
             Sponge.getCauseStackManager().addContext(EventContextKeys.SPAWN_TYPE, SpawnTypes.BLOCK_SPAWNING);
             context.addNotifierAndOwnerToCauseStack();
             context.getCapturedEntitySupplier()

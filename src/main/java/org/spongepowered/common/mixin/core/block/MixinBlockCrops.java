@@ -46,6 +46,8 @@ public abstract class MixinBlockCrops extends MixinBlock {
 
     @Shadow protected abstract PropertyInteger getAgeProperty();
     @Shadow public abstract int getMaxAge();
+    @Shadow protected abstract int getAge(IBlockState state);
+    @Shadow public abstract IBlockState withAge(int age);
 
     @Override
     public ImmutableList<ImmutableDataManipulator<?, ?>> getManipulators(IBlockState blockState) {
@@ -78,6 +80,7 @@ public abstract class MixinBlockCrops extends MixinBlock {
             }
             return Optional.of((BlockState) blockState.withProperty(getAgeProperty(), growth));
         }
+
         return super.getStateWithValue(blockState, key, value);
     }
 
@@ -85,4 +88,27 @@ public abstract class MixinBlockCrops extends MixinBlock {
         return ImmutableDataCachingUtil.getManipulator(ImmutableSpongeGrowthData.class, blockState.getValue(getAgeProperty()), 0, getMaxAge());
     }
 
+    //@Redirect(method = "updateTick", at = @At(value = "INVOKE",
+    //        target = "Lnet/minecraft/world/World;setBlockState(Lnet/minecraft/util/math/BlockPos;Lnet/minecraft/block/state/IBlockState;I)Z"))
+    //public boolean onUpdateTick(World world, BlockPos pos, IBlockState newState, int flags) {
+    //    // TODO find a good default thingy
+    //    Transaction<BlockSnapshot> transaction = new Transaction<>(
+    //            BlockUtil.fromNative(newState)
+    //                    .snapshotFor(new Location<>((org.spongepowered.api.world.World) world, pos.getX(), pos.getY(), pos.getZ())),
+    //            BlockUtil.fromNative(world.getBlockState(pos).withProperty(getAgeProperty(), this.getAge(newState)))
+    //                    .snapshotFor(new Location<>((org.spongepowered.api.world.World) world, pos.getX(), pos.getY(), pos.getZ())));
+
+    //    ChangeBlockEvent.Modify growEvent = SpongeEventFactory.createChangeBlockEventGrow(Sponge.getCauseStackManager().getCurrentCause(),
+    //            ImmutableList.of(transaction));
+    //    if (!SpongeImpl.postEvent(growEvent) && transaction.isValid()) {
+    //        if(transaction.getCustom().isPresent()) {
+    //            BlockSnapshot result = transaction.getCustom().get();
+    //            return world.setBlockState(pos, this.withAge(this.getAge(BlockUtil.toNative(result.getState())) + 1), 2);
+    //        } else {
+    //            return world.setBlockState(pos, this.withAge(this.getAge(newState) + 1), 2);
+    //        }
+    //    }
+
+    //    return false;
+    //}
 }

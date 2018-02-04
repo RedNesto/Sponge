@@ -33,6 +33,7 @@ import org.spongepowered.api.entity.living.player.User;
 import org.spongepowered.api.entity.projectile.source.ProjectileSource;
 import org.spongepowered.api.event.cause.EventContextKey;
 import org.spongepowered.api.event.cause.EventContextKeys;
+import org.spongepowered.api.event.cause.block.BlockChangeAction;
 import org.spongepowered.api.event.cause.entity.damage.DamageType;
 import org.spongepowered.api.event.cause.entity.damage.source.DamageSource;
 import org.spongepowered.api.event.cause.entity.dismount.DismountType;
@@ -102,6 +103,7 @@ public final class EventContextKeysModule
         createKey("sponge:entity_hit", "Entity Hit", BlockSnapshot.class);
         createKey("sponge:used_item", "Used Item", ItemStackSnapshot.class);
         createKey("sponge:plugin", "Plugin", PluginContainer.class);
+        createKey("sponge:block_change_action", "Block Change Action", BlockChangeAction.class);
     }
 
     private void createKey(String id, String name, Class<?> usedClass) {
