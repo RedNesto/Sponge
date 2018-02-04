@@ -28,6 +28,7 @@ import net.minecraft.dispenser.BehaviorDefaultDispenseItem;
 import net.minecraft.dispenser.BehaviorProjectileDispense;
 import net.minecraft.dispenser.IBlockSource;
 import net.minecraft.dispenser.IPosition;
+import net.minecraft.entity.Entity;
 import net.minecraft.entity.IProjectile;
 import net.minecraft.item.ItemStack;
 import net.minecraft.tileentity.TileEntity;
@@ -44,6 +45,7 @@ import org.spongepowered.api.util.annotation.NonnullByDefault;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
+import org.spongepowered.asm.mixin.injection.Redirect;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 import org.spongepowered.asm.mixin.injection.callback.LocalCapture;
 import org.spongepowered.common.SpongeImpl;
@@ -54,6 +56,8 @@ import java.util.List;
 @NonnullByDefault
 @Mixin(BehaviorProjectileDispense.class)
 public class MixinBehaviorProjectileDispense extends BehaviorDefaultDispenseItem {
+
+    private boolean shouldNotSpawn = false;
 
     @Inject(method = "dispenseStack", at = @At(value = "INVOKE", target = "Lnet/minecraft/world/World;spawnEntity(Lnet/minecraft/entity/Entity;)Z"),
             locals = LocalCapture.CAPTURE_FAILEXCEPTION, cancellable = true)
@@ -71,7 +75,23 @@ public class MixinBehaviorProjectileDispense extends BehaviorDefaultDispenseItem
                 if (SpongeImpl.postEvent(event)) {
                     cir.setReturnValue(stack);
                 }
+
+                if(!projectiles.remove(iprojectile)) {
+                    this.shouldNotSpawn = true;
+                }
+
+                event.getEntities().forEach(entity -> entity.getWorld().spawnEntity(entity));
             }
         }
+    }
+
+    @Redirect(method = "dispenseStack", at = @At(value = "INVOKE", target = "Lnet/minecraft/world/World;spawnEntity(Lnet/minecraft/entity/Entity;)Z"))
+    public boolean redirectSpawn(World world, Entity entityIn) {
+        if(this.shouldNotSpawn) {
+            this.shouldNotSpawn = false;
+            return false;
+        }
+
+        return world.spawnEntity(entityIn);
     }
 }
