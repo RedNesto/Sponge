@@ -53,12 +53,14 @@ import net.minecraft.network.play.INetHandlerPlayServer;
 import net.minecraft.network.play.client.CPacketClickWindow;
 import net.minecraft.network.play.client.CPacketCreativeInventoryAction;
 import net.minecraft.network.play.client.CPacketPlayer;
+import net.minecraft.network.play.client.CPacketPlayerAbilities;
 import net.minecraft.network.play.client.CPacketResourcePackStatus;
 import net.minecraft.network.play.client.CPacketUpdateSign;
 import net.minecraft.network.play.client.CPacketUseEntity;
 import net.minecraft.network.play.client.CPacketVehicleMove;
 import net.minecraft.network.play.server.SPacketEntityAttach;
 import net.minecraft.network.play.server.SPacketMoveVehicle;
+import net.minecraft.network.play.server.SPacketPlayerAbilities;
 import net.minecraft.network.play.server.SPacketPlayerListItem;
 import net.minecraft.network.play.server.SPacketResourcePackSend;
 import net.minecraft.network.play.server.SPacketSetSlot;
@@ -81,6 +83,7 @@ import net.minecraft.world.WorldServer;
 import org.apache.logging.log4j.Logger;
 import org.spongepowered.api.Sponge;
 import org.spongepowered.api.block.tileentity.Sign;
+import org.spongepowered.api.data.DataTransactionResult;
 import org.spongepowered.api.data.manipulator.mutable.tileentity.SignData;
 import org.spongepowered.api.data.value.mutable.ListValue;
 import org.spongepowered.api.entity.Transform;
@@ -89,6 +92,7 @@ import org.spongepowered.api.event.CauseStackManager;
 import org.spongepowered.api.event.SpongeEventFactory;
 import org.spongepowered.api.event.block.tileentity.ChangeSignEvent;
 import org.spongepowered.api.event.cause.EventContextKeys;
+import org.spongepowered.api.event.data.ChangeDataHolderEvent;
 import org.spongepowered.api.event.entity.MoveEntityEvent;
 import org.spongepowered.api.event.item.inventory.ClickInventoryEvent;
 import org.spongepowered.api.event.message.MessageEvent;
@@ -109,10 +113,11 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import org.spongepowered.asm.mixin.injection.callback.LocalCapture;
 import org.spongepowered.common.SpongeImpl;
 import org.spongepowered.common.SpongeImplHooks;
+import org.spongepowered.common.data.manipulator.mutable.entity.SpongeFlyingData;
 import org.spongepowered.common.entity.player.tab.SpongeTabList;
 import org.spongepowered.common.event.SpongeCommonEventFactory;
-import org.spongepowered.common.event.tracking.PhaseTracker;
 import org.spongepowered.common.event.tracking.PhaseData;
+import org.spongepowered.common.event.tracking.PhaseTracker;
 import org.spongepowered.common.event.tracking.phase.packet.PacketContext;
 import org.spongepowered.common.event.tracking.phase.packet.PacketPhaseUtil;
 import org.spongepowered.common.event.tracking.phase.tick.PlayerTickContext;
@@ -166,6 +171,8 @@ public abstract class MixinNetHandlerPlayServer implements PlayerConnection, IMi
     @Shadow private void captureCurrentPosition() {}
     @Shadow public abstract void setPlayerLocation(double x, double y, double z, float yaw, float pitch);
     @Shadow private static boolean isMovePlayerPacketInvalid(CPacketPlayer packetIn) { return false; } // Shadowed
+
+    @Shadow protected abstract long currentTimeMillis();
 
     private boolean justTeleported = false;
     @Nullable private Location<World> lastMoveLocation = null;
@@ -799,6 +806,32 @@ public abstract class MixinNetHandlerPlayServer implements PlayerConnection, IMi
         // If the user moves around, they must have closed the GUI, so resend it to get a real answer.
         if (!this.resourcePackRequests.isEmpty()) {
             this.sendPacket(this.resourcePackRequests.peek());
+        }
+    }
+
+    public boolean currentFlyingState = false;
+
+    @Inject(method = "processPlayerAbilities", at = @At("HEAD"))
+    public void onProcessPlayerAbilitiesHead(CPacketPlayerAbilities packetIn, CallbackInfo ci) {
+        this.currentFlyingState = this.player.capabilities.isFlying;
+    }
+
+    @Inject(method = "processPlayerAbilities", at = @At("RETURN"))
+    public void onProcessPlayerAbilitiesReturn(CPacketPlayerAbilities packetIn, CallbackInfo ci) {
+        if ((packetIn.isFlying() && this.player.capabilities.isFlying) != currentFlyingState) {
+            try (CauseStackManager.StackFrame frame = Sponge.getCauseStackManager().pushCauseFrame()) {
+                frame.pushCause(this.player);
+                Player spongePlayer = (Player) this.player;
+                ChangeDataHolderEvent.ValueChange event = SpongeEventFactory.createChangeDataHolderEventValueChange(frame.getCurrentCause(),
+                        DataTransactionResult.successResult(new SpongeFlyingData(!currentFlyingState).flying().asImmutable()), spongePlayer);
+                if(!SpongeImpl.postEvent(event)) {
+                    event.getEndResult().ifSuccessful(newValues -> newValues.forEach(spongePlayer::offer));
+                } else {
+                    // The event is cancelled - lets make know the client we are refusing its new flying status
+                    player.capabilities.isFlying = currentFlyingState;
+                    sendPacket(new SPacketPlayerAbilities(this.player.capabilities));
+                }
+            }
         }
     }
 }
