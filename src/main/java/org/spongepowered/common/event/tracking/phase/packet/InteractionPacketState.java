@@ -30,6 +30,7 @@ import net.minecraft.entity.item.EntityXPOrb;
 import net.minecraft.entity.player.EntityPlayerMP;
 import net.minecraft.entity.projectile.EntityThrowable;
 import net.minecraft.network.Packet;
+import net.minecraft.network.play.client.CPacketPlayerDigging;
 import net.minecraft.util.math.BlockPos;
 import org.spongepowered.api.Sponge;
 import org.spongepowered.api.block.BlockSnapshot;
@@ -64,6 +65,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
@@ -80,9 +82,8 @@ final class InteractionPacketState extends BasicPacketState implements IEntitySp
     @Override
     public void populateContext(EntityPlayerMP playerMP, Packet<?> packet, BasicPacketContext context) {
         final ItemStack stack = ItemStackUtil.cloneDefensive(playerMP.getHeldItemMainhand());
-        if (stack != null) {
-            context.itemUsed(stack);
-        }
+        context.itemUsed(stack);
+        context.getCaptureBlockPos().setPos(((CPacketPlayerDigging) packet).getPosition());
     }
 
     @Override
@@ -93,6 +94,25 @@ final class InteractionPacketState extends BasicPacketState implements IEntitySp
     @Override
     public boolean doesCaptureEntityDrops(BasicPacketContext context) {
         return true;
+    }
+
+    @Override
+    public boolean spawnEntityOrCapture(BasicPacketContext context, Entity entity, int chunkX, int chunkZ) {
+        System.out.println(context.getCaptureBlockPos().getPos());
+        if (this.shouldCaptureEntity()) {
+            if (entity instanceof EntityItem) {
+                Optional<BlockPos> maybeLocation = context.getBlockPosition();
+                if (maybeLocation.isPresent()) {
+                    return context.getBlockItemDropSupplier().get().put(maybeLocation.get(), (EntityItem) entity);
+                } else {
+                    return context.getCapturedItems().add((EntityItem) entity);
+                }
+            } else {
+                return context.getCapturedEntities().add(entity);
+            }
+        }
+
+        return this.spawnEntity(context, entity, chunkX, chunkZ);
     }
 
 
@@ -167,12 +187,8 @@ final class InteractionPacketState extends BasicPacketState implements IEntitySp
 
             phaseContext.getCapturedItemsSupplier()
                 .acceptAndClearIfNotEmpty(items -> {
-                    final ArrayList<Entity> entities = new ArrayList<>();
-                    for (EntityItem item : items) {
-                        entities.add(EntityUtil.fromNative(item));
-                    }
                     final DropItemEvent.Dispense dispense =
-                        SpongeEventFactory.createDropItemEventDispense(Sponge.getCauseStackManager().getCurrentCause(), entities);
+                            SpongeEventFactory.createDropItemEventDispense(Sponge.getCauseStackManager().getCurrentCause(), items);
                     SpongeImpl.postEvent(dispense);
                     if (!dispense.isCancelled()) {
                         processSpawnedEntities(player, dispense);
