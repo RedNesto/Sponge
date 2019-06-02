@@ -177,7 +177,6 @@ import org.spongepowered.common.interfaces.IMixinNextTickListEntry;
 import org.spongepowered.common.interfaces.block.IMixinBlock;
 import org.spongepowered.common.interfaces.block.IMixinBlockEventData;
 import org.spongepowered.common.interfaces.block.tile.IMixinTileEntity;
-import org.spongepowered.common.interfaces.data.IMixinCustomDataHolder;
 import org.spongepowered.common.interfaces.entity.IMixinEntity;
 import org.spongepowered.common.interfaces.server.management.IMixinPlayerChunkMap;
 import org.spongepowered.common.interfaces.util.math.IMixinBlockPos;
@@ -1978,7 +1977,7 @@ public abstract class MixinWorldServer extends MixinWorld implements IMixinWorld
             // We MUST only check to see if a TE exists to avoid creating a new one.
             if (tileEntity != null) {
                 TileEntity tile = (TileEntity) tileEntity;
-                for (DataManipulator<?, ?> manipulator : ((IMixinCustomDataHolder) tile).getCustomManipulators()) {
+                for (DataManipulator<?, ?> manipulator : tile.getContainers()) {
                     this.builder.add(manipulator);
                 }
                 NBTTagCompound nbt = new NBTTagCompound();

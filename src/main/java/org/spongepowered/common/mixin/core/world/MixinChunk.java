@@ -103,13 +103,11 @@ import org.spongepowered.common.event.SpongeCommonEventFactory;
 import org.spongepowered.common.event.tracking.IPhaseState;
 import org.spongepowered.common.event.tracking.PhaseContext;
 import org.spongepowered.common.event.tracking.PhaseTracker;
-import org.spongepowered.common.event.tracking.TrackingUtil;
 import org.spongepowered.common.event.tracking.context.BlockTransaction;
 import org.spongepowered.common.event.tracking.phase.generation.GenerationPhase;
 import org.spongepowered.common.interfaces.IMixinCachable;
 import org.spongepowered.common.interfaces.IMixinChunk;
 import org.spongepowered.common.interfaces.block.tile.IMixinTileEntity;
-import org.spongepowered.common.interfaces.data.IMixinCustomDataHolder;
 import org.spongepowered.common.interfaces.entity.IMixinEntity;
 import org.spongepowered.common.interfaces.server.management.IMixinPlayerChunkMapEntry;
 import org.spongepowered.common.interfaces.world.IMixinWorld;
@@ -280,7 +278,7 @@ public abstract class MixinChunk implements Chunk, IMixinChunk, IMixinCachable {
     public void onLoadHead(CallbackInfo ci) {
         if (!this.world.isRemote) {
             if (PhaseTracker.getInstance().getCurrentState() == GenerationPhase.State.CHUNK_REGENERATING_LOAD_EXISTING) {
-                // If we are loading an existing chunk for the sole purpose of 
+                // If we are loading an existing chunk for the sole purpose of
                 // regenerating, we can skip loading TE's and Entities into the world
                 ci.cancel();
             }
@@ -903,7 +901,7 @@ public abstract class MixinChunk implements Chunk, IMixinChunk, IMixinCachable {
         if (existing != null) {
             // We MUST only check to see if a TE exists to avoid creating a new one.
             org.spongepowered.api.block.tileentity.TileEntity tile = (org.spongepowered.api.block.tileentity.TileEntity) existing;
-            for (DataManipulator<?, ?> manipulator : ((IMixinCustomDataHolder) tile).getCustomManipulators()) {
+            for (DataManipulator<?, ?> manipulator : tile.getContainers()) {
                 builder.add(manipulator);
             }
             NBTTagCompound nbt = new NBTTagCompound();
