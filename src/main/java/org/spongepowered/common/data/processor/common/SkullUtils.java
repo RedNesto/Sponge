@@ -24,22 +24,25 @@
  */
 package org.spongepowered.common.data.processor.common;
 
+import com.mojang.authlib.properties.Property;
 import net.minecraft.init.Items;
 import net.minecraft.item.ItemStack;
 import net.minecraft.nbt.NBTTagCompound;
 import net.minecraft.nbt.NBTUtil;
 import net.minecraft.tileentity.TileEntitySkull;
 import org.spongepowered.api.Sponge;
+import org.spongepowered.api.data.DataView;
 import org.spongepowered.api.data.type.SkullType;
 import org.spongepowered.api.data.type.SkullTypes;
 import org.spongepowered.api.profile.GameProfile;
 import org.spongepowered.common.SpongeImpl;
 import org.spongepowered.common.data.manipulator.mutable.SpongeRepresentedPlayerData;
 import org.spongepowered.common.data.type.SpongeSkullType;
+import org.spongepowered.common.data.util.DataQueries;
 import org.spongepowered.common.data.util.NbtDataUtil;
 import org.spongepowered.common.interfaces.block.tile.IMixinTileEntitySkull;
 
-import java.util.Optional;
+import java.util.*;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 
@@ -162,5 +165,32 @@ public class SkullUtils {
         } else {
             skull.markDirty();
         }
+    }
+
+    /*
+     * GameProfile#toContainer() does not include properties, but we need to have textures
+     * in the saved GameProfile for skull skin to be displayed
+     */
+    public static DataView writeProfileTo(DataView view, GameProfile profile) {
+        Map<String, List<Map<String, String>>> properties = new HashMap<>();
+        com.mojang.authlib.GameProfile updatedProfile = TileEntitySkull.updateGameProfile((com.mojang.authlib.GameProfile) profile);
+        for (String propertyName : updatedProfile.getProperties().keySet()) {
+            List<Map<String, String>> valuesList = new ArrayList<>();
+            for (Property property : updatedProfile.getProperties().get(propertyName)) {
+                HashMap<String, String> values = new HashMap<>();
+                values.put("Value", property.getValue());
+
+                if (property.hasSignature()) {
+                    values.put("Signature", property.getSignature());
+                }
+
+                valuesList.add(values);
+            }
+
+            properties.put(propertyName, valuesList);
+        }
+
+        return view.set(DataQueries.SKULL_OWNER, profile)
+                .set(DataQueries.SKULL_OWNER.then("Properties"), properties);
     }
 }

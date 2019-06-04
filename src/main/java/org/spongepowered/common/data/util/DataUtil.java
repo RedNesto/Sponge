@@ -443,6 +443,14 @@ public final class DataUtil {
         return new DelegateDataValidator(ImmutableList.of(), validationType);
     }
 
+    public static <T extends DataManipulator<T, I>, I extends ImmutableDataManipulator<I, T>> void registerNbtProcessor(Class<T> manipulatorClass, NbtDataProcessor<T, I> nbtProcessor) {
+        SpongeManipulatorRegistry.getInstance().registerNbtProcessor(manipulatorClass, nbtProcessor);
+    }
+
+    public static <E, V extends BaseValue<E>> void registerNbtValueProcessor(Key<V> key, NbtValueProcessor<E, V> nbtProcessor) {
+        SpongeManipulatorRegistry.getInstance().registerNbtValueProcessor(key, nbtProcessor);
+    }
+
     public static <T extends DataManipulator<T, I>, I extends ImmutableDataManipulator<I, T>> Optional<NbtDataProcessor<T, I>> getNbtProcessor(NbtDataType dataType, Class<T> clazz) {
         return Optional.ofNullable((NbtDataProcessor<T, I>) SpongeManipulatorRegistry.getInstance().getNbtDelegate(dataType, clazz));
     }

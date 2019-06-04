@@ -55,6 +55,7 @@ import org.spongepowered.common.data.nbt.NbtDataType;
 import org.spongepowered.common.data.nbt.SpongeNbtProcessorDelegate;
 import org.spongepowered.common.data.nbt.data.NbtDataProcessor;
 import org.spongepowered.common.data.nbt.value.NbtValueProcessor;
+import org.spongepowered.common.data.nbt.value.SpongeNbtValueProcessorDelegate;
 import org.spongepowered.common.data.util.ComparatorUtil;
 import org.spongepowered.common.data.util.DataFunction;
 import org.spongepowered.common.data.util.DataProcessorDelegate;
@@ -63,6 +64,7 @@ import org.spongepowered.common.registry.SpongeAdditionalCatalogRegistryModule;
 import org.spongepowered.common.registry.type.data.KeyRegistryModule;
 
 import java.lang.reflect.Modifier;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
@@ -152,6 +154,10 @@ public class SpongeManipulatorRegistry implements SpongeAdditionalCatalogRegistr
             .makeMap();
 
         private final Map<Class<? extends DataManipulator<?, ?>>, List<NbtDataProcessor<?, ?>>> nbtProcessorMap = new MapMaker()
+            .concurrencyLevel(4)
+            .makeMap();
+
+        private final Map<Key<?>, List<NbtValueProcessor<?, ?>>> nbtValueProcessorMap = new MapMaker()
             .concurrencyLevel(4)
             .makeMap();
 
@@ -298,6 +304,26 @@ public class SpongeManipulatorRegistry implements SpongeAdditionalCatalogRegistr
         processorList.add(valueProcessor);
     }
 
+    public <M extends DataManipulator<M, I>, I extends ImmutableDataManipulator<I, M>> void registerNbtProcessor(Class<M> manipulatorClass, NbtDataProcessor<M, I> nbtProcessor) {
+        checkState(this.tempRegistry != null);
+        checkNotNull(manipulatorClass);
+        checkNotNull(nbtProcessor);
+        List<NbtDataProcessor<?, ?>> processorList =
+                this.tempRegistry.nbtProcessorMap.computeIfAbsent(manipulatorClass, k -> Collections.synchronizedList(new ArrayList<>()));
+        checkArgument(!processorList.contains(nbtProcessor), "Duplicate NbtDataProcessor registration!");
+        processorList.add(nbtProcessor);
+    }
+
+    public <E, V extends BaseValue<E>> void registerNbtValueProcessor(Key<V> key, NbtValueProcessor<E, V> nbtProcessor) {
+        checkState(this.tempRegistry != null);
+        checkNotNull(key);
+        checkNotNull(nbtProcessor);
+        List<NbtValueProcessor<?, ?>> processorList =
+                this.tempRegistry.nbtValueProcessorMap.computeIfAbsent(key, k -> Collections.synchronizedList(new ArrayList<>()));
+        checkArgument(!processorList.contains(nbtProcessor), "Duplicate NbtValueProcessor registration!");
+        processorList.add(nbtProcessor);
+    }
+
     @SuppressWarnings("SuspiciousMethodCalls")
     @Nullable
     public DataProcessor<?, ?> getDelegate(Class<?> mClass) {
@@ -344,7 +370,7 @@ public class SpongeManipulatorRegistry implements SpongeAdditionalCatalogRegistr
 
     @Nullable
     public NbtValueProcessor<?, ?> getNbtProcessor(NbtDataType type, Key<?> key) {
-        return this.nbtValueTable.get(type, key);
+        return this.nbtValueTable.get(key, type);
     }
 
     public Collection<NbtDataProcessor<?, ?>> getNbtProcessors(NbtDataType nbtDataType) {
@@ -416,6 +442,22 @@ public class SpongeManipulatorRegistry implements SpongeAdditionalCatalogRegistr
             }
         });
         this.nbtProcessorTable = builder.build();
+
+        // NBT value processors
+        ImmutableTable.Builder<Key<?>, NbtDataType, NbtValueProcessor<?, ?>> nbtValueProcessorsBuilder = ImmutableTable.builder();
+        this.tempRegistry.nbtValueProcessorMap.forEach((key, value) -> {
+            final HashMultimap<NbtDataType, NbtValueProcessor<?, ?>> processorMultimap = HashMultimap.create();
+            for (NbtValueProcessor<?, ?> nbtValueProcessor : value) {
+                processorMultimap.put(nbtValueProcessor.getTargetType(), nbtValueProcessor);
+            }
+            for (Map.Entry<NbtDataType, Collection<NbtValueProcessor<?, ?>>> nbtValueTypeCollectionEntry : processorMultimap.asMap().entrySet()) {
+                ImmutableList.Builder<NbtValueProcessor<?, ?>> processorBuilder = ImmutableList.builder();
+                processorBuilder.addAll(nbtValueTypeCollectionEntry.getValue());
+                final NbtDataType dataType = nbtValueTypeCollectionEntry.getKey();
+                nbtValueProcessorsBuilder.put(key, dataType, new SpongeNbtValueProcessorDelegate(processorBuilder.build(), dataType));
+            }
+        });
+        this.nbtValueTable = nbtValueProcessorsBuilder.build();
 
         ImmutableSet.Builder<DataRegistration<?, ?>> registrationBuilder = ImmutableSet.builder();
         ImmutableMap.Builder<Class<? extends DataManipulator<?, ?>>, DataRegistration<?, ?>> manipulatorBuilder = ImmutableMap.builder();

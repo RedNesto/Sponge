@@ -76,6 +76,8 @@ public final class NbtDataUtil {
         public static final String PASSENGERS = "Passengers";
 
         public static final String IS_FLYING = "flying";
+        public static final String SKULL_TYPE = "SkullType";
+        public static final String SKULL_OWNER = "Owner";
 
         public static final String INVENTORY = "Inventory";
         public static final String ENDERCHEST_INVENTORY = "EnderItems";

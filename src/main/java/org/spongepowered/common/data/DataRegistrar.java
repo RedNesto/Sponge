@@ -101,6 +101,8 @@ import org.spongepowered.common.data.manipulator.mutable.entity.*;
 import org.spongepowered.common.data.manipulator.mutable.extra.SpongeFluidItemData;
 import org.spongepowered.common.data.manipulator.mutable.item.*;
 import org.spongepowered.common.data.manipulator.mutable.tileentity.*;
+import org.spongepowered.common.data.nbt.data.*;
+import org.spongepowered.common.data.nbt.value.*;
 import org.spongepowered.common.data.processor.data.*;
 import org.spongepowered.common.data.processor.data.block.*;
 import org.spongepowered.common.data.processor.data.entity.*;
@@ -890,6 +892,14 @@ public class DataRegistrar {
         DataUtil.registerValueProcessor(Keys.END_GATEWAY_AGE, new EndGatewayAgeValueProcessor());
         DataUtil.registerValueProcessor(Keys.EXIT_POSITION, new EndGatewayExitPositionValueProcessor());
         DataUtil.registerValueProcessor(Keys.EXACT_TELEPORT, new EndGatewayExactTeleportValueProcessor());
+
+        // NBT Data Processors
+        DataUtil.registerNbtProcessor(SkullData.class, new SkullTypeNbtProcessor());
+        DataUtil.registerNbtProcessor(RepresentedPlayerData.class, new SkullRepresentedPlayerNbtProcess());
+
+        // NBT Value Processors
+        DataUtil.registerNbtValueProcessor(Keys.SKULL_TYPE, new SkullTypeNbtValueProcessor());
+        DataUtil.registerNbtValueProcessor(Keys.REPRESENTED_PLAYER, new SkullRepresentedPlayerNbtValueProcessor());
 
         // Properties
         final PropertyRegistry propertyRegistry = Sponge.getPropertyRegistry();

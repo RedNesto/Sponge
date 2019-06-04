@@ -26,6 +26,7 @@ package org.spongepowered.common.block;
 
 import com.google.common.base.MoreObjects;
 import net.minecraft.block.Block;
+import net.minecraft.block.state.IBlockState;
 import net.minecraft.nbt.NBTTagCompound;
 import net.minecraft.tileentity.TileEntity;
 import net.minecraft.util.math.BlockPos;
@@ -96,6 +97,8 @@ public class SpongeTileEntityArchetype extends AbstractArchetype<TileEntityType,
         compound.setInteger("z", blockpos.getZ());
         tileEntity.readFromNBT(compound);
         tileEntity.markDirty();
+        IBlockState nativeNewState = BlockUtil.toNative(this.blockState);
+        tileEntity.getWorld().notifyBlockUpdate(tileEntity.getPos(), nativeNewState, nativeNewState, 3);
         return Optional.of((org.spongepowered.api.block.tileentity.TileEntity) tileEntity);
     }
 

@@ -27,7 +27,6 @@ package org.spongepowered.common.data.util;
 import static org.spongepowered.api.data.DataQuery.of;
 
 import org.spongepowered.api.data.DataQuery;
-import org.spongepowered.api.world.schematic.Schematic;
 
 @SuppressWarnings("DeprecatedIsStillUsed")
 public final class DataQueries {
@@ -52,6 +51,10 @@ public final class DataQueries {
     // Beacons
     public static final DataQuery PRIMARY = of("primary");
     public static final DataQuery SECONDARY = of("secondary");
+
+    // Skulls
+    public static final DataQuery SKULL_TYPE = of(NbtDataUtil.Minecraft.SKULL_TYPE);
+    public static final DataQuery SKULL_OWNER = of(NbtDataUtil.Minecraft.SKULL_OWNER);
 
     // TileEntity names
     public static final DataQuery CUSTOM_NAME = of("CustomName");
@@ -220,7 +223,7 @@ public final class DataQueries {
         }
 
     }
-    
+
     public static final class Schematic {
 
 
@@ -249,7 +252,7 @@ public final class DataQueries {
             public static final DataQuery ENTITIES = of("Entities");
             public static final DataQuery ENTITY_ID = of("id");
         }
-        
+
         public static final DataQuery VERSION = of("Version");
         public static final DataQuery DATA_VERSION = of("DataVersion");
         public static final DataQuery METADATA = of("Metadata");
