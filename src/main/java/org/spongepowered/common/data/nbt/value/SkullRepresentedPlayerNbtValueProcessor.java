@@ -34,7 +34,6 @@ import org.spongepowered.api.data.DataView;
 import org.spongepowered.api.data.key.Keys;
 import org.spongepowered.api.data.value.mutable.Value;
 import org.spongepowered.api.profile.GameProfile;
-import org.spongepowered.common.data.builder.authlib.SpongeGameProfileBuilder;
 import org.spongepowered.common.data.manipulator.mutable.*;
 import org.spongepowered.common.data.nbt.NbtDataTypes;
 import org.spongepowered.common.data.processor.common.SkullUtils;
@@ -72,7 +71,8 @@ public class SkullRepresentedPlayerNbtValueProcessor extends AbstractSpongeNbtVa
 
     @Override
     public Optional<GameProfile> readValue(DataView view) {
-        return new SpongeGameProfileBuilder().build(view);
+        return view.getView(DataQueries.SKULL_OWNER)
+                .flatMap(SkullUtils::readProfileFrom);
     }
 
     @Override
@@ -112,7 +112,7 @@ public class SkullRepresentedPlayerNbtValueProcessor extends AbstractSpongeNbtVa
         }
 
         Optional<GameProfile> oldValue = readValue(view);
-        SkullUtils.writeProfileTo(view, value);
+        SkullUtils.writeProfileTo(view.createView(DataQueries.SKULL_OWNER), value);
 
         ImmutableSpongeValue<GameProfile> resultValue = new ImmutableSpongeValue<>(Keys.REPRESENTED_PLAYER, SpongeRepresentedPlayerData.NULL_PROFILE, value);
         if (oldValue.isPresent()) {

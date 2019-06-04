@@ -30,6 +30,7 @@ import net.minecraft.item.ItemStack;
 import net.minecraft.nbt.NBTTagCompound;
 import net.minecraft.nbt.NBTUtil;
 import net.minecraft.tileentity.TileEntitySkull;
+import org.apache.commons.lang3.StringUtils;
 import org.spongepowered.api.Sponge;
 import org.spongepowered.api.data.DataView;
 import org.spongepowered.api.data.type.SkullType;
@@ -171,26 +172,54 @@ public class SkullUtils {
      * GameProfile#toContainer() does not include properties, but we need to have textures
      * in the saved GameProfile for skull skin to be displayed
      */
-    public static DataView writeProfileTo(DataView view, GameProfile profile) {
-        Map<String, List<Map<String, String>>> properties = new HashMap<>();
-        com.mojang.authlib.GameProfile updatedProfile = TileEntitySkull.updateGameProfile((com.mojang.authlib.GameProfile) profile);
-        for (String propertyName : updatedProfile.getProperties().keySet()) {
-            List<Map<String, String>> valuesList = new ArrayList<>();
-            for (Property property : updatedProfile.getProperties().get(propertyName)) {
-                HashMap<String, String> values = new HashMap<>();
-                values.put("Value", property.getValue());
+    public static void writeProfileTo(DataView view, GameProfile profile) {
+        view.set(DataQueries.GAME_PROFILE_ID, profile.getUniqueId().toString());
+        profile.getName().ifPresent(name -> view.set(DataQueries.GAME_PROFILE_NAME, name));
 
-                if (property.hasSignature()) {
-                    values.put("Signature", property.getSignature());
+        com.mojang.authlib.GameProfile updatedProfile = TileEntitySkull.updateGameProfile((com.mojang.authlib.GameProfile) profile);
+        if (!updatedProfile.getProperties().isEmpty()) {
+            Map<String, List<Map<String, String>>> properties = new HashMap<>();
+            for (String propertyName : updatedProfile.getProperties().keySet()) {
+                List<Map<String, String>> valuesList = new ArrayList<>();
+                for (Property property : updatedProfile.getProperties().get(propertyName)) {
+                    HashMap<String, String> values = new HashMap<>();
+                    values.put("Value", property.getValue());
+
+                    if (property.hasSignature()) {
+                        values.put("Signature", property.getSignature());
+                    }
+
+                    valuesList.add(values);
                 }
 
-                valuesList.add(values);
+                properties.put(propertyName, valuesList);
             }
 
-            properties.put(propertyName, valuesList);
+            view.set(DataQueries.GAME_PROFILE_PROPERTIES, properties);
+        }
+    }
+
+    public static Optional<GameProfile> readProfileFrom(DataView view) {
+        UUID uuid = view.getString(DataQueries.GAME_PROFILE_ID).map(UUID::fromString).orElse(null);
+        String name = view.getString(DataQueries.GAME_PROFILE_NAME).orElse(null);
+        // Same check as in Mojang's GameProfile ctor,
+        // because a profile must have at least an ID or a name
+        if (uuid == null && StringUtils.isBlank(name)) {
+            return Optional.empty();
         }
 
-        return view.set(DataQueries.SKULL_OWNER, profile)
-                .set(DataQueries.SKULL_OWNER.then("Properties"), properties);
+        com.mojang.authlib.GameProfile profile = new com.mojang.authlib.GameProfile(uuid, name);
+        Optional<? extends Map<?, ?>> properties = view.getMap(DataQueries.GAME_PROFILE_PROPERTIES);
+        if (properties.isPresent()) {
+            for (Map.Entry<?, ?> entry : properties.get().entrySet()) {
+                String propertyKey = (String) entry.getKey();
+                Collection<Map<String, String>> propertyList = (Collection<Map<String, String>>) entry.getValue();
+                for (Map<String, String> property : propertyList) {
+                    profile.getProperties().put(propertyKey, new Property(propertyKey, property.get("Value"), property.get("Signature")));
+                }
+            }
+        }
+
+        return Optional.of((GameProfile) profile);
     }
 }

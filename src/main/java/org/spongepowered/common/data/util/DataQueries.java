@@ -62,6 +62,7 @@ public final class DataQueries {
     // RepresentedPlayerData
     public static final DataQuery GAME_PROFILE_ID = of("Id");
     public static final DataQuery GAME_PROFILE_NAME = of("Name");
+    public static final DataQuery GAME_PROFILE_PROPERTIES = of("Properties");
 
     // Velocity
     public static final DataQuery VELOCITY_X = of("X");

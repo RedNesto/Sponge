@@ -35,10 +35,10 @@ import org.spongepowered.api.data.key.Keys;
 import org.spongepowered.api.data.manipulator.immutable.*;
 import org.spongepowered.api.data.manipulator.mutable.*;
 import org.spongepowered.api.profile.GameProfile;
-import org.spongepowered.common.data.builder.authlib.SpongeGameProfileBuilder;
 import org.spongepowered.common.data.manipulator.mutable.*;
 import org.spongepowered.common.data.nbt.AbstractSpongeNbtProcessor;
 import org.spongepowered.common.data.nbt.NbtDataTypes;
+import org.spongepowered.common.data.processor.common.SkullUtils;
 import org.spongepowered.common.data.util.DataQueries;
 import org.spongepowered.common.data.util.NbtDataUtil;
 
@@ -69,8 +69,9 @@ public class SkullRepresentedPlayerNbtProcess extends AbstractSpongeNbtProcessor
 
     @Override
     public Optional<RepresentedPlayerData> readFrom(DataView view) {
-        Optional<GameProfile> profile = new SpongeGameProfileBuilder().build(view);
-        return profile.map(SpongeRepresentedPlayerData::new);
+        return view.getView(DataQueries.SKULL_OWNER)
+                .flatMap(SkullUtils::readProfileFrom)
+                .map(SpongeRepresentedPlayerData::new);
     }
 
     @Override
