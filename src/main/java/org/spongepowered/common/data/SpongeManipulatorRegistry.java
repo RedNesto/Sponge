@@ -308,13 +308,17 @@ public class SpongeManipulatorRegistry implements SpongeAdditionalCatalogRegistr
             this.tempRegistry.nbtProcessorMap.put(manipulatorClass, nbtDataProcessors);
             this.tempRegistry.nbtProcessorMap.put(implclass, nbtDataProcessors);
         }
+        nbtDataProcessors.add(processor);
+
         List<NbtDataProcessor<?, ?>> immutableProcessors = this.tempRegistry.immutabelNbtProcessorMap.get(immutable);
         if (immutableProcessors == null) {
             immutableProcessors = new CopyOnWriteArrayList<>();
             this.tempRegistry.immutabelNbtProcessorMap.put(immutable, immutableProcessors);
             this.tempRegistry.immutabelNbtProcessorMap.put(implImmutable, immutableProcessors);
         }
+        immutableProcessors.add(processor);
 
+        return this;
     }
 
     public <E, V extends BaseValue<E>> void registerValueProcessor(Key<V> key, ValueProcessor<E, V> valueProcessor) {

@@ -33,14 +33,13 @@ import org.spongepowered.common.data.nbt.data.NbtDataProcessor;
 
 import java.util.Optional;
 
-public class SpongeNbtProcessorDelegate<M extends DataManipulator<M, I>, I extends ImmutableDataManipulator<I, M>> implements NbtDataProcessor<M, I> {
+public class SpongeNbtProcessorDelegate<M extends DataManipulator<M, I>, I extends ImmutableDataManipulator<I, M>> extends AbstractSpongeNbtProcessor<M, I> {
 
     private final ImmutableList<? extends NbtDataProcessor<M, I>> processors;
-    private final NbtDataType nbtDataType;
 
     public SpongeNbtProcessorDelegate(final ImmutableList<? extends NbtDataProcessor<M, I>> processors, final NbtDataType nbtDataType) {
+        super(nbtDataType);
         this.processors = processors;
-        this.nbtDataType = nbtDataType;
     }
 
     @Override
@@ -62,6 +61,17 @@ public class SpongeNbtProcessorDelegate<M extends DataManipulator<M, I>, I exten
     public Optional<M> readFrom(final NBTTagCompound compound) {
         for (final NbtDataProcessor<M, I> processor : this.processors) {
             final Optional<M> returnVal = processor.readFrom(compound);
+            if (returnVal.isPresent()) {
+                return returnVal;
+            }
+        }
+        return Optional.empty();
+    }
+
+    @Override
+    public Optional<I> readImmutableFrom(NBTTagCompound compound) {
+        for (final NbtDataProcessor<M, I> processor : this.processors) {
+            final Optional<I> returnVal = processor.readImmutableFrom(compound);
             if (returnVal.isPresent()) {
                 return returnVal;
             }

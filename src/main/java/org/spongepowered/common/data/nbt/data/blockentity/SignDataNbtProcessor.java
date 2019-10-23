@@ -32,6 +32,7 @@ import org.spongepowered.api.data.manipulator.immutable.tileentity.ImmutableSign
 import org.spongepowered.api.data.manipulator.mutable.tileentity.SignData;
 import org.spongepowered.api.data.value.mutable.ListValue;
 import org.spongepowered.api.text.Text;
+import org.spongepowered.api.text.serializer.TextSerializers;
 import org.spongepowered.common.data.manipulator.mutable.tileentity.SpongeSignData;
 import org.spongepowered.common.text.SpongeTexts;
 import org.spongepowered.common.util.Constants;
@@ -42,20 +43,33 @@ import java.util.Optional;
 public class SignDataNbtProcessor extends AbstractBlockEntityNbtProcessor<SignData, ImmutableSignData> {
     @Override
     public boolean isCompatible(final NBTTagCompound compound) {
-        return false;
+        if (compound.hasKey(Constants.Item.BLOCK_ENTITY_TAG)) {
+            return hasSignText(compound.getCompoundTag(Constants.Item.BLOCK_ENTITY_TAG));
+        }
+
+        return hasSignText(compound);
+    }
+
+    private boolean hasSignText(NBTTagCompound compound) {
+        return compound.hasKey("Text1") || compound.hasKey("Text2") || compound.hasKey("Text3") || compound.hasKey("Text4");
     }
 
     @Override
     public Optional<SignData> readFrom(final NBTTagCompound mainCompound) {
-        final NBTTagCompound tileCompound = mainCompound.getCompoundTag(Constants.Item.BLOCK_ENTITY_TAG);
-        final String id = tileCompound.getString(Constants.Item.BLOCK_ENTITY_ID);
-        if (!id.equalsIgnoreCase(Constants.TileEntity.SIGN)) {
+        NBTTagCompound tileCompound = mainCompound;
+        if (mainCompound.hasKey(Constants.Item.BLOCK_ENTITY_TAG)) {
+            tileCompound = mainCompound.getCompoundTag(Constants.Item.BLOCK_ENTITY_TAG);
+        }
+
+        if (!hasSignText(tileCompound)) {
             return Optional.empty();
         }
+
         final List<Text> texts = Lists.newArrayListWithCapacity(4);
         for (int i = 0; i < 4; i++) {
-            texts.add(SpongeTexts.fromLegacy(tileCompound.getString("Text" + (i + 1))));
+            texts.add(TextSerializers.JSON.deserialize(tileCompound.getString("Text" + (i + 1))));
         }
+
         return Optional.of(new SpongeSignData(texts));
     }
 

@@ -60,6 +60,8 @@ import org.spongepowered.asm.util.PrettyPrinter;
 import org.spongepowered.common.SpongeImpl;
 import org.spongepowered.common.bridge.block.BlockBridge;
 import org.spongepowered.common.bridge.world.WorldServerBridge;
+import org.spongepowered.common.data.nbt.NbtDataTypes;
+import org.spongepowered.common.data.nbt.data.NbtDataProcessor;
 import org.spongepowered.common.data.persistence.NbtTranslator;
 import org.spongepowered.common.data.util.DataUtil;
 import org.spongepowered.common.event.tracking.PhaseContext;
@@ -318,6 +320,15 @@ public class SpongeBlockSnapshot implements BlockSnapshot {
                 return Optional.of(((T) dataManipulator));
             }
         }
+
+        if (this.compound != null) {
+            for (NbtDataProcessor<?, ?> nbtProcessor : DataUtil.getNbtProcessors(NbtDataTypes.TILE_ENTITY)) {
+                if (nbtProcessor.isCompatible(this.compound)) {
+                    return (Optional<T>) nbtProcessor.readImmutableFrom(this.compound);
+                }
+            }
+        }
+
         return Optional.empty();
     }
 

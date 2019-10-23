@@ -24,9 +24,12 @@
  */
 package org.spongepowered.common.data.nbt;
 
+import net.minecraft.nbt.NBTTagCompound;
 import org.spongepowered.api.data.manipulator.DataManipulator;
 import org.spongepowered.api.data.manipulator.ImmutableDataManipulator;
 import org.spongepowered.common.data.nbt.data.NbtDataProcessor;
+
+import java.util.Optional;
 
 public abstract class AbstractSpongeNbtProcessor<T extends DataManipulator<T, I>, I extends ImmutableDataManipulator<I, T>> implements NbtDataProcessor<T, I> {
 
@@ -37,8 +40,17 @@ public abstract class AbstractSpongeNbtProcessor<T extends DataManipulator<T, I>
     }
 
     @Override
+    public NbtDataType getTargetType() {
+        return this.dataType;
+    }
+
+    @Override
     public int getPriority() {
         return 100;
     }
 
+    @Override
+    public Optional<I> readImmutableFrom(NBTTagCompound compound) {
+        return readFrom(compound).map(T::asImmutable);
+    }
 }
