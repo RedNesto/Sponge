@@ -134,6 +134,20 @@ public class SpongeCommand {
                 .setExecutor(this::whichExecutor)
                 .build();
 
+        // RedNesto test
+        final Command.Parameterized paginationTestCommand = Command.builder()
+                .setExecutor(context -> {
+//                    List<Component> contents = IntStream.range(0, 50)
+//                            .mapToObj(index -> TextComponent.of("Item " + index))
+//                            .collect(Collectors.toList());
+                    PaginationList.builder()
+                            .padding(TextComponent.of("~"))
+                            .contents(TextComponent.of("One Item"))
+                            .sendTo(context.getCause().first(Audience.class).get());
+                    return CommandResult.success();
+                })
+                .build();
+
         // /sponge
         final Command.Builder commandBuilder = Command.builder()
                 .setPermission("sponge.command.root")
@@ -143,7 +157,8 @@ public class SpongeCommand {
                 .child(pluginsCommand, "plugins")
                 .child(timingsCommand, "timings")
                 .child(versionCommand, "version")
-                .child(whichCommand, "which");
+                .child(whichCommand, "which")
+                .child(paginationTestCommand, "pagintest");
 
         this.additionalActions(commandBuilder);
         return commandBuilder.build();
