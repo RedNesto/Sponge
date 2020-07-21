@@ -25,6 +25,7 @@
 package org.spongepowered.common.command.sponge;
 
 import co.aikar.timings.Timings;
+import net.kyori.adventure.audience.Audience;
 import net.kyori.adventure.text.TextComponent;
 import net.kyori.adventure.text.event.ClickEvent;
 import net.kyori.adventure.text.format.NamedTextColor;
@@ -39,6 +40,7 @@ import org.spongepowered.api.command.parameter.CommandContext;
 import org.spongepowered.api.command.parameter.Parameter;
 import org.spongepowered.api.event.SpongeEventFactory;
 import org.spongepowered.api.event.lifecycle.RefreshGameEvent;
+import org.spongepowered.api.service.pagination.PaginationList;
 import org.spongepowered.api.util.TypeTokens;
 import org.spongepowered.common.SpongeCommon;
 import org.spongepowered.common.event.SpongeEventManager;
